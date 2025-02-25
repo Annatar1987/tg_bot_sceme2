@@ -1,0 +1,39 @@
+import logging
+from telegram import Update
+from telegram.ext import Updater, CommandHandler, MessageHandler, filters
+
+# Настройка логирования
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+
+# Функция для команды /start
+def start(update, context):
+    update.message.reply_text('Здравствуйте! Чтобы начать, пожалуйста, авторизуйтесь через веб-интерфейс: http://your_server.com/auth')
+    # Замените http://your_server.com/auth на реальный URL вашего веб-сервера
+
+# Функция для обработки текстовых сообщений
+def handle_message(update, context):
+    user_id = update.message.from_user.id
+    update.message.reply_text('Для получения статистики используйте команду /stats')
+
+# Функция для команды /stats
+def stats(update, context):
+    user_id = update.message.from_user.id
+    update.message.reply_text('Выберите период: [Сегодня] [Вчера] [Последние 7 дней] [Пользовательский]')
+
+def main():
+    # Токен вашего бота
+    TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
+    updater = Updater(TOKEN, use_context=True)
+    dp = updater.dispatcher
+
+    # Обработчики команд
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CommandHandler("stats", stats))
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+
+    # Запуск бота
+    updater.start_polling()
+    updater.idle()
+
+if __name__ == '__main__':
+    main()
