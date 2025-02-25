@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Создать шаблон</title>
+</head>
+<body>
+    <h1>Создать шаблон</h1>
+    <form method="post">
+        <label for="user_id">User ID:</label>
+        <input type="text" id="user_id" name="user_id"><br>
+        <label for="name">Название шаблона:</label>
+        <input type="text" id="name" name="name"><br>
+        <label for="campaigns">ID кампаний (через запятую):</label>
+        <input type="text" id="campaigns" name="campaigns"><br>
+        <input type="submit" value="Создать">
+    </form>
+</body>
+</html>
