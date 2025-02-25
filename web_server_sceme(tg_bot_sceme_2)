@@ -1,0 +1,109 @@
+from flask import Flask, request, redirect, url_for, render_template
+from flask_sqlalchemy import SQLAlchemy
+import requests
+import json
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+db = SQLAlchemy(app)
+
+# Модель пользователя
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    telegram_id = db.Column(db.String(50), unique=True, nullable=False)
+    access_token = db.Column(db.String(255), nullable=False)
+    refresh_token = db.Column(db.String(255), nullable=False)
+
+# Модель шаблона
+class Template(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    campaigns = db.Column(db.String(255), nullable=False)  # Пример: ID кампаний через запятую
+
+# Модель фильтра
+class Filter(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    criteria = db.Column(db.String(255), nullable=False)  # Пример: "status=active"
+
+# Страница аутентификации
+@app.route('/auth')
+def auth():
+    # Перенаправление на страницу OAuth Яндекс.Директ
+    return redirect('https://oauth.yandex.ru/authorize?response_type=code&client_id=YOUR_CLIENT_ID')
+
+# Обработка callback от Яндекс
+@app.route('/callback')
+def callback():
+    code = request.args.get('code')
+    # Обмен кода на токен
+    response = requests.post('https://oauth.yandex.ru/token', data={
+        'grant_type': 'authorization_code',
+        'code': code,
+        'client_id': 'YOUR_CLIENT_ID',
+        'client_secret': 'YOUR_CLIENT_SECRET'
+    })
+    tokens = response.json()
+    access_token = tokens['access_token']
+    refresh_token = tokens['refresh_token']
+    # Сохранение токенов в базе данных
+    # Для этого нужно знать telegram_id пользователя, который можно получить из бота
+    return 'Авторизация успешна. Вернитесь в Telegram.'
+
+# Страница для создания шаблона
+@app.route('/create_template', methods=['GET', 'POST'])
+def create_template():
+    if request.method == 'POST':
+        user_id = request.form['user_id']
+        name = request.form['name']
+        campaigns = request.form['campaigns']
+        template = Template(user_id=user_id, name=name, campaigns=campaigns)
+        db.session.add(template)
+        db.session.commit()
+        return 'Шаблон создан'
+    return render_template('create_template.html')
+
+# Страница для создания фильтра
+@app.route('/create_filter', methods=['GET', 'POST'])
+def create_filter():
+    if request.method == 'POST':
+        user_id = request.form['user_id']
+        name = request.form['name']
+        criteria = request.form['criteria']
+        filter = Filter(user_id=user_id, name=name, criteria=criteria)
+        db.session.add(filter)
+        db.session.commit()
+        return 'Фильтр создан'
+    return render_template('create_filter.html')
+
+# API для получения статистики
+@app.route('/get_stats', methods=['POST'])
+def get_stats():
+    data = request.json
+    user_id = data['user_id']
+    period = data['period']
+    template_id = data.get('template_id')
+    filter_id = data.get('filter_id')
+    # Получение токена пользователя
+    user = User.query.filter_by(telegram_id=user_id).first()
+    access_token = user.access_token
+    # Получение статистики из Яндекс.Директ
+    headers = {'Authorization': f'Bearer {access_token}'}
+    params = {'period': period}
+    if template_id:
+        template = Template.query.get(template_id)
+        campaigns = template.campaigns.split(',')
+        params['campaign_ids'] = campaigns
+    elif filter_id:
+        filter = Filter.query.get(filter_id)
+        if 'status=' in filter.criteria:
+            status = filter.criteria.split('=')[1]
+    response = requests.get('https://api.direct.yandex.com/json/v5/reports', headers=headers, params=params)
+    stats = response.json()
+    return json.dumps(stats)
+
+if __name__ == '__main__':
+    db.create_all()
+    app.run(debug=True)
